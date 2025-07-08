@@ -28,6 +28,8 @@ func processPayment(ctx context.Context, payment core.PaymentRequest) error {
 		status = "PROCESSED_FALLBACK"
 	}
 
+	requestedAt := time.Now().UTC().Format(time.RFC3339Nano)
+
 	// Prepare request to processor
 	body := map[string]interface{}{
 		"correlationId": payment.CorrelationID,
@@ -41,18 +43,20 @@ func processPayment(ctx context.Context, payment core.PaymentRequest) error {
 	if err != nil {
 		status = "FAILED"
 		processorType = "DEFAULT"
+		return err
 	} else {
 		defer resp.Body.Close()
 		if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 			status = "FAILED"
+			return err
 		}
 	}
 
 	_, err = database.PgPool.Exec(ctx, `
-		INSERT INTO payments (correlation_id, amount, status, processor)
-		VALUES ($1, $2, $3, $4)
+		INSERT INTO payments (correlation_id, amount, status, processor, created_at)
+		VALUES ($1, $2, $3, $4, $5)
 		ON CONFLICT (correlation_id) DO UPDATE SET status = $3, processor = $4
-	`, payment.CorrelationID, payment.Amount, status, processorType)
+	`, payment.CorrelationID, payment.Amount, status, processorType, requestedAt)
 	if err != nil {
 		return fmt.Errorf("failed to update payment in postgres: %w", err)
 	}

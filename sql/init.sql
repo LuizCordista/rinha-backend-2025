@@ -6,7 +6,5 @@ CREATE TABLE payments (
                           amount DECIMAL(10, 2) NOT NULL,
                           status payment_status NOT NULL DEFAULT 'PENDING',
                           processor processor_type,
-                          created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+                          created_at TIMESTAMPTZ NOT NULL
 );
-
-CREATE INDEX idx_payments_summary ON payments (processor, status, created_at);
