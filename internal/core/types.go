@@ -37,7 +37,6 @@ type PaymentsSummaryResponse struct {
 	Fallback PaymentsSummary `json:"fallback"`
 }
 
-// Nova estrutura para pagamentos processados
 type ProcessedPayment struct {
 	CorrelationID string  `json:"correlationId"`
 	Amount        float64 `json:"amount"`

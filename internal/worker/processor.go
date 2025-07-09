@@ -30,7 +30,6 @@ func processPayment(ctx context.Context, payment core.PaymentRequest) error {
 
 	requestedAt := time.Now().UTC().Format(time.RFC3339Nano)
 
-	// Prepare request to processor
 	body := map[string]interface{}{
 		"correlationId": payment.CorrelationID,
 		"amount":        payment.Amount,

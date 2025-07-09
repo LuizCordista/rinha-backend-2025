@@ -41,75 +41,23 @@ func PaymentsSummaryHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	from := r.URL.Query().Get("from")
-	to := r.URL.Query().Get("to")
-	if from == "" || to == "" {
-		http.Error(w, "Missing 'from' or 'to' query parameter", http.StatusBadRequest)
+	from, to, useFilter, err := parseTimeRange(r)
+	if err != nil {
+		if err == http.ErrMissingFile {
+			http.Error(w, "Both 'from' and 'to' query parameters are required, or omit both for all data", http.StatusBadRequest)
+		} else {
+			http.Error(w, "Invalid datetime format", http.StatusBadRequest)
+		}
 		return
 	}
 
-	// Parse time
-	fromTime, err := time.Parse(time.RFC3339Nano, from)
-	if err != nil {
-		http.Error(w, "Invalid 'from' datetime format", http.StatusBadRequest)
-		return
-	}
-	toTime, err := time.Parse(time.RFC3339Nano, to)
-	if err != nil {
-		http.Error(w, "Invalid 'to' datetime format", http.StatusBadRequest)
-		return
-	}
-
-	// Buscar todos os pagamentos do Redis
 	paymentsData, err := database.Rdb.HGetAll(database.RedisCtx, "payments").Result()
 	if err != nil {
 		http.Error(w, "Failed to retrieve payments from Redis", http.StatusInternalServerError)
 		return
 	}
 
-	var defaultCount int
-	var defaultSum float64
-	var fallbackCount int
-	var fallbackSum float64
-
-	// Processar cada pagamento
-	for _, paymentDataStr := range paymentsData {
-		var payment core.ProcessedPayment
-		if err := json.Unmarshal([]byte(paymentDataStr), &payment); err != nil {
-			continue // Skip invalid payments
-		}
-
-		// Parse created_at time
-		createdAt, err := time.Parse(time.RFC3339Nano, payment.CreatedAt)
-		if err != nil {
-			continue // Skip payments with invalid timestamps
-		}
-
-		// Check if payment is within time range
-		if createdAt.Before(fromTime) || createdAt.After(toTime) {
-			continue
-		}
-
-		// Count and sum by processor type and status
-		if payment.Processor == "DEFAULT" && payment.Status == "PROCESSED_DEFAULT" {
-			defaultCount++
-			defaultSum += payment.Amount
-		} else if payment.Processor == "FALLBACK" && payment.Status == "PROCESSED_FALLBACK" {
-			fallbackCount++
-			fallbackSum += payment.Amount
-		}
-	}
-
-	resp := core.PaymentsSummaryResponse{
-		Default: core.PaymentsSummary{
-			TotalRequests: defaultCount,
-			TotalAmount:   core.RoundedFloat(defaultSum),
-		},
-		Fallback: core.PaymentsSummary{
-			TotalRequests: fallbackCount,
-			TotalAmount:   core.RoundedFloat(fallbackSum),
-		},
-	}
+	resp := summarizePayments(paymentsData, from, to, useFilter)
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(resp)
@@ -121,7 +69,6 @@ func PurgePaymentsHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Deletar todos os pagamentos do Redis
 	err := database.Rdb.Del(database.RedisCtx, "payments").Err()
 	if err != nil {
 		http.Error(w, "Failed to purge payments", http.StatusInternalServerError)
@@ -129,4 +76,62 @@ func PurgePaymentsHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.WriteHeader(http.StatusNoContent)
+}
+
+func parseTimeRange(r *http.Request) (from, to time.Time, useFilter bool, err error) {
+	fromStr := r.URL.Query().Get("from")
+	toStr := r.URL.Query().Get("to")
+
+	if fromStr == "" && toStr == "" {
+		return
+	}
+	if fromStr == "" || toStr == "" {
+		err = http.ErrMissingFile
+		return
+	}
+	from, err = time.Parse(time.RFC3339Nano, fromStr)
+	if err != nil {
+		return
+	}
+	to, err = time.Parse(time.RFC3339Nano, toStr)
+	if err != nil {
+		return
+	}
+	useFilter = true
+	return
+}
+
+func summarizePayments(paymentsData map[string]string, from, to time.Time, useFilter bool) core.PaymentsSummaryResponse {
+	var defaultCount, fallbackCount int
+	var defaultSum, fallbackSum float64
+
+	for _, paymentDataStr := range paymentsData {
+		var payment core.ProcessedPayment
+		if err := json.Unmarshal([]byte(paymentDataStr), &payment); err != nil {
+			continue
+		}
+		if useFilter {
+			createdAt, err := time.Parse(time.RFC3339Nano, payment.CreatedAt)
+			if err != nil || createdAt.Before(from) || createdAt.After(to) {
+				continue
+			}
+		}
+		if payment.Processor == "DEFAULT" && payment.Status == "PROCESSED_DEFAULT" {
+			defaultCount++
+			defaultSum += payment.Amount
+		} else if payment.Processor == "FALLBACK" && payment.Status == "PROCESSED_FALLBACK" {
+			fallbackCount++
+			fallbackSum += payment.Amount
+		}
+	}
+	return core.PaymentsSummaryResponse{
+		Default: core.PaymentsSummary{
+			TotalRequests: defaultCount,
+			TotalAmount:   core.RoundedFloat(defaultSum),
+		},
+		Fallback: core.PaymentsSummary{
+			TotalRequests: fallbackCount,
+			TotalAmount:   core.RoundedFloat(fallbackSum),
+		},
+	}
 }
