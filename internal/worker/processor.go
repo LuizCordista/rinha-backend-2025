@@ -49,13 +49,22 @@ func processPayment(ctx context.Context, payment core.PaymentRequest) error {
 		}
 	}
 
-	_, err = database.PgPool.Exec(ctx, `
-		INSERT INTO payments (correlation_id, amount, status, processor, created_at)
-		VALUES ($1, $2, $3, $4, $5)
-		ON CONFLICT (correlation_id) DO UPDATE SET status = $3, processor = $4
-	`, payment.CorrelationID, payment.Amount, status, processorType, requestedAt)
+	processedPayment := core.ProcessedPayment{
+		CorrelationID: payment.CorrelationID,
+		Amount:        payment.Amount,
+		Status:        status,
+		Processor:     processorType,
+		CreatedAt:     requestedAt,
+	}
+
+	paymentData, err := json.Marshal(processedPayment)
 	if err != nil {
-		return fmt.Errorf("failed to update payment in postgres: %w", err)
+		return fmt.Errorf("failed to marshal payment data: %w", err)
+	}
+
+	err = database.Rdb.HSet(database.RedisCtx, "payments", payment.CorrelationID, paymentData).Err()
+	if err != nil {
+		return fmt.Errorf("failed to save payment in redis: %w", err)
 	}
 
 	return nil

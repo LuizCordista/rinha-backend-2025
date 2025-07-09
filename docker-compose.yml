@@ -35,14 +35,12 @@ services:
       - rinha-net
       - payment-processor-net
     depends_on:
-      db:
-        condition: service_healthy
       redis:
         condition: service_healthy
     deploy:
       resources:
         limits:
-          cpus: "0.5"
+          cpus: "0.55"
           memory: "30MB"
 
   api2:
@@ -58,34 +56,7 @@ services:
       - WORKER_CONCURRENCY=16
 
 
-  #--- DB ---
-  db:
-    image: postgres:16-alpine
-    container_name: rinha-db
-    ports:
-      - "5432:5432"
-    environment:
-      - POSTGRES_USER=user
-      - POSTGRES_PASSWORD=password
-      - POSTGRES_DB=rinha
-    volumes:
-      - ./sql/postgresql.conf:/docker-entrypoint-initdb.d/postgresql.conf
-      - ./sql/init.sql:/docker-entrypoint-initdb.d/init.sql
-    command: postgres -c config_file=/docker-entrypoint-initdb.d/postgresql.conf
-    networks:
-      - rinha-net
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U user -d rinha"]
-      interval: 5s
-      timeout: 5s
-      retries: 5
-    deploy:
-      resources:
-        limits:
-          cpus: "0.20"
-          memory: "115MB"
-
-  #--- QUEUE AND CACHE ---
+  #--- QUEUE AND STORAGE ---
   redis:
     image: redis:7.2-alpine
     container_name: rinha-redis
@@ -100,8 +71,9 @@ services:
     deploy:
       resources:
         limits:
-          cpus: "0.15"
-          memory: "40MB"
+          cpus: "0.25"
+          memory: "275MB"
+
 
 #--- NETWORKS ---
 networks:

@@ -12,10 +12,6 @@ import (
 
 func main() {
 	database.InitRedis()
-	if err := database.InitPostgres(); err != nil {
-		log.Fatalf("Unable to connect to PostgreSQL: %v", err)
-	}
-	defer database.PgPool.Close()
 
 	mux := http.NewServeMux()
 	api.RegisterRoutes(mux)

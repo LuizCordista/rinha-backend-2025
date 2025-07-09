@@ -60,42 +60,54 @@ func PaymentsSummaryHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	ctx := database.PgCtx
-	// Query for DEFAULT processor
-	row := database.PgPool.QueryRow(ctx, `
-		SELECT COUNT(*), COALESCE(SUM(amount),0)
-		FROM payments
-		WHERE processor = 'DEFAULT' AND status IN ('PROCESSED_DEFAULT')
-		AND created_at BETWEEN $1 AND $2
-	`, fromTime, toTime)
-	var defaultCount int
-	var defaultSum float64
-	if err := row.Scan(&defaultCount, &defaultSum); err != nil {
-		http.Error(w, "DB error", http.StatusInternalServerError)
+	// Buscar todos os pagamentos do Redis
+	paymentsData, err := database.Rdb.HGetAll(database.RedisCtx, "payments").Result()
+	if err != nil {
+		http.Error(w, "Failed to retrieve payments from Redis", http.StatusInternalServerError)
 		return
 	}
-	// Query for FALLBACK processor
-	row = database.PgPool.QueryRow(ctx, `
-		SELECT COUNT(*), COALESCE(SUM(amount),0)
-		FROM payments
-		WHERE processor = 'FALLBACK' AND status IN ('PROCESSED_FALLBACK')
-		AND created_at BETWEEN $1 AND $2
-	`, fromTime, toTime)
+
+	var defaultCount int
+	var defaultSum float64
 	var fallbackCount int
 	var fallbackSum float64
-	if err := row.Scan(&fallbackCount, &fallbackSum); err != nil {
-		http.Error(w, "DB error", http.StatusInternalServerError)
-		return
+
+	// Processar cada pagamento
+	for _, paymentDataStr := range paymentsData {
+		var payment core.ProcessedPayment
+		if err := json.Unmarshal([]byte(paymentDataStr), &payment); err != nil {
+			continue // Skip invalid payments
+		}
+
+		// Parse created_at time
+		createdAt, err := time.Parse(time.RFC3339Nano, payment.CreatedAt)
+		if err != nil {
+			continue // Skip payments with invalid timestamps
+		}
+
+		// Check if payment is within time range
+		if createdAt.Before(fromTime) || createdAt.After(toTime) {
+			continue
+		}
+
+		// Count and sum by processor type and status
+		if payment.Processor == "DEFAULT" && payment.Status == "PROCESSED_DEFAULT" {
+			defaultCount++
+			defaultSum += payment.Amount
+		} else if payment.Processor == "FALLBACK" && payment.Status == "PROCESSED_FALLBACK" {
+			fallbackCount++
+			fallbackSum += payment.Amount
+		}
 	}
 
 	resp := core.PaymentsSummaryResponse{
 		Default: core.PaymentsSummary{
 			TotalRequests: defaultCount,
-			TotalAmount:   defaultSum,
+			TotalAmount:   core.RoundedFloat(defaultSum),
 		},
 		Fallback: core.PaymentsSummary{
 			TotalRequests: fallbackCount,
-			TotalAmount:   fallbackSum,
+			TotalAmount:   core.RoundedFloat(fallbackSum),
 		},
 	}
 
@@ -109,7 +121,8 @@ func PurgePaymentsHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	_, err := database.PgPool.Exec(database.PgCtx, "DELETE FROM payments")
+	// Deletar todos os pagamentos do Redis
+	err := database.Rdb.Del(database.RedisCtx, "payments").Err()
 	if err != nil {
 		http.Error(w, "Failed to purge payments", http.StatusInternalServerError)
 		return
