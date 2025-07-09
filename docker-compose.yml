@@ -17,7 +17,7 @@ services:
     deploy:
       resources:
         limits:
-          cpus: "0.25"
+          cpus: "0.15"
           memory: "15MB"
 
   api1: &api
@@ -42,7 +42,7 @@ services:
     deploy:
       resources:
         limits:
-          cpus: "0.40"
+          cpus: "0.5"
           memory: "30MB"
 
   api2:
@@ -58,7 +58,7 @@ services:
       - WORKER_CONCURRENCY=16
 
 
-  #--- BANCO DE DADOS ---
+  #--- DB ---
   db:
     image: postgres:16-alpine
     container_name: rinha-db
@@ -69,8 +69,9 @@ services:
       - POSTGRES_PASSWORD=password
       - POSTGRES_DB=rinha
     volumes:
-      - pg_data:/var/lib/postgresql/data
+      - ./sql/postgresql.conf:/docker-entrypoint-initdb.d/postgresql.conf
       - ./sql/init.sql:/docker-entrypoint-initdb.d/init.sql
+    command: postgres -c config_file=/docker-entrypoint-initdb.d/postgresql.conf
     networks:
       - rinha-net
     healthcheck:
@@ -84,7 +85,7 @@ services:
           cpus: "0.20"
           memory: "115MB"
 
-  #--- FILA E CACHE ---
+  #--- QUEUE AND CACHE ---
   redis:
     image: redis:7.2-alpine
     container_name: rinha-redis
@@ -99,14 +100,10 @@ services:
     deploy:
       resources:
         limits:
-          cpus: "0.25"
+          cpus: "0.15"
           memory: "40MB"
 
-#--- VOLUMES E REDES ---
-volumes:
-  pg_data:
-  redis_data:
-
+#--- NETWORKS ---
 networks:
   rinha-net:
     driver: bridge
