@@ -75,7 +75,7 @@ func PurgePaymentsHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	w.WriteHeader(http.StatusNoContent)
+	w.WriteHeader(http.StatusOK)
 }
 
 func parseTimeRange(r *http.Request) (from, to time.Time, useFilter bool, err error) {
