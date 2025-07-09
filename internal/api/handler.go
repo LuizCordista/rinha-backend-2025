@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/araddon/dateparse"
 	"rinha-backend-2025/internal/core"
 	"rinha-backend-2025/internal/database"
 )
@@ -89,11 +90,11 @@ func parseTimeRange(r *http.Request) (from, to time.Time, useFilter bool, err er
 		err = http.ErrMissingFile
 		return
 	}
-	from, err = time.Parse(time.RFC3339Nano, fromStr)
+	from, err = dateparse.ParseAny(fromStr)
 	if err != nil {
 		return
 	}
-	to, err = time.Parse(time.RFC3339Nano, toStr)
+	to, err = dateparse.ParseAny(toStr)
 	if err != nil {
 		return
 	}
