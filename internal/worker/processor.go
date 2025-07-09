@@ -41,13 +41,10 @@ func processPayment(ctx context.Context, payment core.PaymentRequest) error {
 
 	resp, err := http.Post(processorURL+"/payments", "application/json", bytes.NewReader(jsonBody))
 	if err != nil {
-		status = "FAILED"
-		processorType = "DEFAULT"
 		return err
 	} else {
 		defer resp.Body.Close()
 		if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-			status = "FAILED"
 			return err
 		}
 	}

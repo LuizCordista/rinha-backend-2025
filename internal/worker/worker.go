@@ -19,7 +19,7 @@ func StartWorker() {
 	}
 	processingQueue := "payments_processing:" + workerID
 
-	concurrency := 8 // default
+	concurrency := 10 // default
 	if val := os.Getenv("WORKER_CONCURRENCY"); val != "" {
 		if n, err := strconv.Atoi(val); err == nil && n > 0 {
 			concurrency = n

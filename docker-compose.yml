@@ -17,7 +17,7 @@ services:
     deploy:
       resources:
         limits:
-          cpus: "0.10"
+          cpus: "0.25"
           memory: "15MB"
 
   api1: &api
@@ -30,6 +30,7 @@ services:
       - PROCESSOR_DEFAULT_URL=http://payment-processor-default:8080
       - PROCESSOR_FALLBACK_URL=http://payment-processor-fallback:8080
       - INSTANCE_ID=API-1
+      - WORKER_CONCURRENCY=16
     networks:
       - rinha-net
       - payment-processor-net
@@ -42,7 +43,7 @@ services:
       resources:
         limits:
           cpus: "0.40"
-          memory: "100MB"
+          memory: "30MB"
 
   api2:
     <<: *api
@@ -54,6 +55,7 @@ services:
       - PROCESSOR_DEFAULT_URL=http://payment-processor-default:8080
       - PROCESSOR_FALLBACK_URL=http://payment-processor-fallback:8080
       - INSTANCE_ID=API-2
+      - WORKER_CONCURRENCY=16
 
 
   #--- BANCO DE DADOS ---
@@ -79,17 +81,14 @@ services:
     deploy:
       resources:
         limits:
-          cpus: "0.30"
+          cpus: "0.20"
           memory: "115MB"
 
   #--- FILA E CACHE ---
   redis:
     image: redis:7.2-alpine
     container_name: rinha-redis
-    volumes:
-      - ./redis.conf:/usr/local/etc/redis/redis.conf
-      - redis_data:/data
-    command: redis-server /usr/local/etc/redis/redis.conf
+    command: redis-server --save "" --appendonly no --maxclients 20000
     networks:
       - rinha-net
     healthcheck:
@@ -100,8 +99,8 @@ services:
     deploy:
       resources:
         limits:
-          cpus: "0.30"
-          memory: "20MB"
+          cpus: "0.25"
+          memory: "40MB"
 
 #--- VOLUMES E REDES ---
 volumes:
