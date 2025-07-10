@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"strings"
 	"time"
 
 	"rinha-backend-2025/internal/core"
@@ -44,6 +45,7 @@ func processPayment(ctx context.Context, payment core.PaymentRequest) error {
 	} else {
 		defer resp.Body.Close()
 		if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+			database.Rdb.HSet(database.RedisCtx, "health:"+strings.ToLower(processorType), "failing", "true")
 			return fmt.Errorf("failed to process payment: %s", resp.Status)
 		}
 	}
