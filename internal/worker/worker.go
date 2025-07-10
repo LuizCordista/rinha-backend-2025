@@ -46,6 +46,7 @@ func StartWorker() {
 				}
 
 				if err := processPayment(context.Background(), payment); err != nil {
+					database.Rdb.LPush(database.RedisCtx, "payments_pending", res)
 					fmt.Printf("[Worker %s-%d] Failed to process payment: %v\n", workerID, workerNum, err)
 				} else {
 					fmt.Printf("[Worker %s-%d] Payment processed: %s\n", workerID, workerNum, payment.CorrelationID)

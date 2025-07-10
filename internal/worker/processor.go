@@ -44,7 +44,7 @@ func processPayment(ctx context.Context, payment core.PaymentRequest) error {
 	} else {
 		defer resp.Body.Close()
 		if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-			return err
+			return fmt.Errorf("failed to process payment: %s", resp.Status)
 		}
 	}
 
