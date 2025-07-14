@@ -34,7 +34,7 @@ func processPayment(ctx context.Context, payment core.PaymentRequest) error {
 	body := map[string]interface{}{
 		"correlationId": payment.CorrelationID,
 		"amount":        payment.Amount,
-		"requestedAt":   time.Now().UTC().Format(time.RFC3339Nano),
+		"requestedAt":   requestedAt,
 	}
 
 	jsonBody, _ := json.Marshal(body)
